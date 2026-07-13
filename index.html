@@ -452,6 +452,20 @@
     renderList();
   }
 
+  function iconSvg(paths) {
+    return '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" ' +
+      'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + paths + '</svg>';
+  }
+
+  var ICONS = {
+    reset: '<polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>',
+    undo: '<polyline points="9 14 4 9 9 4"></polyline><path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>',
+    pencil: '<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>',
+    refresh: '<polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline>' +
+      '<path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>',
+    gear: '<circle cx="12" cy="12" r="3"></circle><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>'
+  };
+
   function renderTabBar() {
     el.tabBar.innerHTML = "";
     state.routines.forEach(function (r) {
@@ -468,14 +482,14 @@
     var resetBtn = document.createElement("button");
     resetBtn.className = "tab-icon-btn";
     resetBtn.title = "Reset all items to unchecked";
-    resetBtn.innerHTML = "&#8634;";
+    resetBtn.innerHTML = iconSvg(ICONS.reset);
     resetBtn.addEventListener("click", resetAllChecked);
     el.tabBar.appendChild(resetBtn);
 
     var undoBtn = document.createElement("button");
     undoBtn.className = "tab-icon-btn";
     undoBtn.title = "Undo";
-    undoBtn.innerHTML = "&#8617;";
+    undoBtn.innerHTML = iconSvg(ICONS.undo);
     undoBtn.disabled = undoStack.length === 0;
     undoBtn.addEventListener("click", undo);
     el.tabBar.appendChild(undoBtn);
@@ -483,21 +497,21 @@
     var gearBtn = document.createElement("button");
     gearBtn.className = "tab-icon-btn";
     gearBtn.title = "Edit routines";
-    gearBtn.innerHTML = "&#9998;";
+    gearBtn.innerHTML = iconSvg(ICONS.pencil);
     gearBtn.addEventListener("click", openEditRoutines);
     el.tabBar.appendChild(gearBtn);
 
     var refreshBtn = document.createElement("button");
     refreshBtn.className = "tab-icon-btn";
-    refreshBtn.title = "Check for latest updates";
-    refreshBtn.innerHTML = "&#8635;";
+    refreshBtn.title = "Refresh";
+    refreshBtn.innerHTML = iconSvg(ICONS.refresh);
     refreshBtn.addEventListener("click", ghPull);
     el.tabBar.appendChild(refreshBtn);
 
     var syncBtn = document.createElement("button");
     syncBtn.className = "tab-icon-btn";
     syncBtn.title = "Sync setup";
-    syncBtn.innerHTML = "&#9881;";
+    syncBtn.innerHTML = iconSvg(ICONS.gear);
     syncBtn.addEventListener("click", openSyncSetup);
     el.tabBar.appendChild(syncBtn);
   }
