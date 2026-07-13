@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Routine Checklists</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg2: #f4f4f6;
+    --text: #1c1c1e;
+    --text2: #6b6b70;
+    --text3: #a0a0a5;
+    --border: #e3e3e6;
+    --accent: #4f6bff;
+    --red: #ff3b30;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000;
+      --bg2: #1c1c1e;
+      --text: #f5f5f7;
+      --text2: #98989d;
+      --text3: #6b6b70;
+      --border: #2c2c2e;
+      --accent: #7b8fff;
+      --red: #ff453a;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  #app {
+    max-width: 640px; margin: 0 auto;
+    display: flex; flex-direction: column;
+    min-height: 100vh;
+    padding: 24px 20px;
+  }
+
+  /* Routine tab bar */
+  .tab-bar {
+    display: flex; align-items: center; gap: 6px;
+    flex-wrap: wrap;
+    padding-bottom: 16px; margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .routine-tab {
+    padding: 8px 14px; font-size: 14px; font-weight: 500;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg); color: var(--text2);
+    cursor: pointer;
+  }
+  .routine-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .tab-icon-btn {
+    margin-left: auto;
+    width: 32px; height: 32px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text2);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 16px;
+  }
+  /* Item list */
+  .content { flex: 1 1 auto; }
+  .empty-state { color: var(--text3); font-size: 14px; padding: 40px 4px; text-align: center; }
+  .item-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 4px; border-bottom: 0.5px solid var(--border);
+  }
+  .item-row:last-child { border-bottom: none; }
+  .item-check { width: 18px; height: 18px; flex: 0 0 auto; cursor: pointer; accent-color: var(--accent); }
+  .item-label {
+    flex: 1; min-width: 0; font-size: 15px; cursor: pointer;
+    color: var(--text); word-break: break-word;
+  }
+  .item-label.linked { color: var(--accent); text-decoration: underline; text-decoration-color: transparent; }
+  .item-label.linked:hover { text-decoration-color: var(--accent); }
+  .item-row.checked .item-label { color: var(--text3); text-decoration: line-through; }
+  .item-actions { display: flex; gap: 4px; opacity: 0; flex: 0 0 auto; }
+  .item-row:hover .item-actions { opacity: 1; }
+  .item-actions button {
+    width: 26px; height: 26px; border: none; background: none; color: var(--text2);
+    cursor: pointer; font-size: 14px; border-radius: 6px;
+  }
+  .item-actions button:hover { background: var(--bg2); }
+
+  /* Add item row */
+  .add-row { display: flex; gap: 8px; padding-top: 16px; margin-top: 8px; border-top: 1px solid var(--border); }
+  .add-row input {
+    flex: 1; min-width: 0; padding: 10px 12px; font-size: 14px;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg2); color: var(--text); outline: none;
+  }
+  .add-row input:focus { border-color: var(--accent); }
+  .add-row button {
+    padding: 10px 16px; font-size: 14px; font-weight: 500; border-radius: 8px;
+    border: none; background: var(--accent); color: #fff; cursor: pointer;
+  }
+
+  /* Modal */
+  .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 20; }
+  .modal {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    z-index: 21; width: 90%; max-width: 420px; max-height: 80vh;
+    background: var(--bg); border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+    padding: 20px; overflow-y: auto;
+  }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .modal-title { font-size: 16px; font-weight: 600; }
+  .modal-close { border: none; background: none; color: var(--text2); font-size: 16px; cursor: pointer; padding: 4px; }
+  .modal label { display: block; font-size: 12px; color: var(--text2); margin: 12px 0 4px; }
+  .modal label:first-of-type { margin-top: 0; }
+  .modal input[type="text"], .modal input[type="url"], .modal input[type="password"] {
+    width: 100%; padding: 10px 12px; font-size: 14px;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg2); color: var(--text); outline: none;
+  }
+  .modal input:focus { border-color: var(--accent); }
+  .modal-actions { display: flex; gap: 8px; margin-top: 18px; }
+  .modal-actions button {
+    flex: 1; padding: 10px; border-radius: 8px; border: none; font-size: 14px; font-weight: 500; cursor: pointer;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-secondary { background: var(--bg2); color: var(--text2); }
+  .btn-danger { background: var(--red); color: #fff; }
+  .confirm-text { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
+  .sync-note { font-size: 12px; color: var(--text3); margin-top: 10px; }
+
+  /* Edit Routines list */
+  .routine-edit-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 0.5px solid var(--border); }
+  .routine-edit-row:last-child { border-bottom: none; }
+  .routine-name-input {
+    flex: 1; min-width: 0; border: none; background: transparent; color: var(--text);
+    font-size: 14px; padding: 6px 4px; outline: none;
+  }
+  .routine-edit-row button {
+    width: 26px; height: 26px; border: none; background: none; color: var(--text2);
+    cursor: pointer; font-size: 14px; border-radius: 6px; flex: 0 0 auto;
+  }
+  .routine-edit-row button:hover { background: var(--bg2); }
+
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="tab-bar" id="tabBar"></div>
+  <main class="content" id="content"></main>
+  <div class="add-row">
+    <input type="text" id="addItemInput" placeholder="Add item…">
+    <button id="addItemBtn">Add</button>
+  </div>
+</div>
+
+<div class="backdrop" id="backdrop" hidden></div>
+
+<div class="modal" id="editItemModal" hidden>
+  <div class="modal-header">
+    <span class="modal-title">Edit Item</span>
+    <button class="modal-close" id="editItemClose">&#10005;</button>
+  </div>
+  <label>Text</label>
+  <input type="text" id="editItemText">
+  <label>URL (optional)</label>
+  <input type="url" id="editItemUrl" placeholder="https://…">
+  <div class="modal-actions">
+    <button class="btn-secondary" id="editItemCancel">Cancel</button>
+    <button class="btn-primary" id="editItemSave">Save</button>
+  </div>
+</div>
+
+<div class="modal" id="editRoutinesModal" hidden>
+  <div class="modal-header">
+    <span class="modal-title">Edit Routines</span>
+    <button class="modal-close" id="editRoutinesClose">&#10005;</button>
+  </div>
+  <input type="text" id="addRoutineInput" placeholder="New routine…">
+  <div class="modal-actions" style="margin-top: 8px;">
+    <button class="btn-primary" id="addRoutineBtn" style="flex: 0 0 auto; padding: 8px 14px;">Add</button>
+  </div>
+  <div id="routineEditList" style="margin-top: 12px;"></div>
+</div>
+
+<div class="modal" id="syncModal" hidden>
+  <div class="modal-header">
+    <span class="modal-title">Sync Setup</span>
+    <button class="modal-close" id="syncClose">&#10005;</button>
+  </div>
+  <label>GitHub owner</label>
+  <input type="text" id="ghOwner" placeholder="e.g. RonSill">
+  <label>Repo name</label>
+  <input type="text" id="ghRepo" placeholder="e.g. Routine-Checklists">
+  <label>Personal access token</label>
+  <input type="password" id="ghPat" placeholder="github_pat_...">
+  <div class="modal-actions">
+    <button class="btn-secondary" id="syncSkip">Use local only</button>
+    <button class="btn-primary" id="syncSave">Save &amp; Sync</button>
+  </div>
+  <div class="sync-note" id="syncNote"></div>
+</div>
+
+<div class="modal" id="confirmModal" hidden style="max-width: 340px;">
+  <div class="confirm-text" id="confirmText">Delete?</div>
+  <div class="modal-actions">
+    <button class="btn-secondary" id="confirmCancel">Cancel</button>
+    <button class="btn-danger" id="confirmOk">Delete</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var DATA_KEY = "routineChecklistsData";
+  var GH_CONFIG_KEY = "routineChecklistsGithubConfig";
+  var DATA_PATH = "routines.json";
+
+  // Public deploy copy: seed items are intentionally blank. Real routine
+  // content lives only in each device's synced private data, never in this
+  // publicly hosted file. See src/routine-checklists.html for the dev copy.
+  var DEFAULT_ITEMS_BY_ROUTINE = {
+    Quick: [],
+    Morning: [],
+    Daily: [],
+    Friday: []
+  };
+
+  var DEFAULT_ROUTINES = ["Quick", "Morning", "Daily", "Friday"].map(function (name) {
+    var items = DEFAULT_ITEMS_BY_ROUTINE[name] || [];
+    return {
+      id: uid(),
+      name: name,
+      items: items.map(function (text) { return { id: uid(), text: text, url: "", checked: false }; })
+    };
+  });
+
+  var state = {
+    routines: [],
+    activeRoutineId: null,
+    lastResetDate: null,
+    gh: null // { owner, repo, pat, sha }
+  };
+
+  function uid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return "id-" + Date.now() + "-" + Math.random().toString(16).slice(2);
+  }
+
+  function todayStr() {
+    var d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+
+  function loadLocal() {
+    try {
+      var raw = localStorage.getItem(DATA_KEY);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        state.routines = parsed.routines || DEFAULT_ROUTINES;
+        state.activeRoutineId = parsed.activeRoutineId || state.routines[0].id;
+        state.lastResetDate = parsed.lastResetDate || todayStr();
+      } else {
+        state.routines = DEFAULT_ROUTINES;
+        state.activeRoutineId = state.routines[0].id;
+        state.lastResetDate = todayStr();
+        saveLocal();
+      }
+    } catch (e) {
+      state.routines = DEFAULT_ROUTINES;
+      state.activeRoutineId = state.routines[0].id;
+      state.lastResetDate = todayStr();
+    }
+    if (!state.routines.some(function (r) { return r.id === state.activeRoutineId; })) {
+      state.activeRoutineId = state.routines.length ? state.routines[0].id : null;
+    }
+    try {
+      var gh = localStorage.getItem(GH_CONFIG_KEY);
+      state.gh = gh ? JSON.parse(gh) : null;
+    } catch (e) { state.gh = null; }
+  }
+
+  function saveLocal() {
+    localStorage.setItem(DATA_KEY, JSON.stringify(state));
+  }
+
+  function persistAndSync() {
+    saveLocal();
+    ghPushDebounced();
+  }
+
+  function applyDailyReset() {
+    var today = todayStr();
+    if (state.lastResetDate === today) return;
+    state.routines.forEach(function (r) {
+      r.items.forEach(function (it) { it.checked = false; });
+    });
+    state.lastResetDate = today;
+    persistAndSync();
+  }
+
+  // ---------- GitHub sync ----------
+  // Auto-sync: pulls on load, pushes (debounced) after every change.
+  // Falls back to local-only silently if not configured or on network error.
+  var pushTimer = null;
+
+  function ghApiUrl() {
+    return "https://api.github.com/repos/" + state.gh.owner + "/" + state.gh.repo + "/contents/" + DATA_PATH;
+  }
+
+  function b64encode(str) {
+    return btoa(unescape(encodeURIComponent(str)));
+  }
+  function b64decode(str) {
+    return decodeURIComponent(escape(atob(str)));
+  }
+
+  function ghPull() {
+    if (!state.gh) return;
+    fetch(ghApiUrl(), {
+      headers: { Authorization: "token " + state.gh.pat }
+    }).then(function (res) {
+      if (!res.ok) throw new Error("pull failed");
+      return res.json();
+    }).then(function (json) {
+      state.gh.sha = json.sha;
+      var remote = JSON.parse(b64decode(json.content));
+      state.routines = remote.routines || state.routines;
+      state.activeRoutineId = remote.activeRoutineId || state.activeRoutineId;
+      state.lastResetDate = remote.lastResetDate || state.lastResetDate;
+      if (!state.routines.some(function (r) { return r.id === state.activeRoutineId; })) {
+        state.activeRoutineId = state.routines.length ? state.routines[0].id : null;
+      }
+      saveLocal();
+      applyDailyReset();
+      render();
+    }).catch(function () {
+      // Network or auth error — silently continue on local data.
+    });
+  }
+
+  function ghPushNow() {
+    if (!state.gh) return;
+    var body = {
+      message: "Routine Checklists sync " + new Date().toISOString(),
+      content: b64encode(JSON.stringify({
+        routines: state.routines,
+        activeRoutineId: state.activeRoutineId,
+        lastResetDate: state.lastResetDate
+      })),
+      sha: state.gh.sha || undefined
+    };
+    fetch(ghApiUrl(), {
+      method: "PUT",
+      headers: { Authorization: "token " + state.gh.pat, "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(function (res) {
+      if (!res.ok) throw new Error("push failed");
+      return res.json();
+    }).then(function (json) {
+      state.gh.sha = json.content.sha;
+      localStorage.setItem(GH_CONFIG_KEY, JSON.stringify(state.gh));
+    }).catch(function () {
+      // Last-write-wins, no warning — a failed push just means local stays
+      // ahead until the next successful sync attempt.
+    });
+  }
+
+  function ghPushDebounced() {
+    if (!state.gh) return;
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(ghPushNow, 500);
+  }
+
+  function activeRoutine() {
+    return state.routines.find(function (r) { return r.id === state.activeRoutineId; }) || null;
+  }
+
+  function sortedItems(routine) {
+    return routine.items.slice().sort(function (a, b) {
+      return a.text.localeCompare(b.text);
+    });
+  }
+
+  // ---------- Elements ----------
+  var el = {
+    tabBar: document.getElementById("tabBar"),
+    content: document.getElementById("content"),
+    addItemInput: document.getElementById("addItemInput"),
+    addItemBtn: document.getElementById("addItemBtn"),
+    backdrop: document.getElementById("backdrop"),
+    editItemModal: document.getElementById("editItemModal"),
+    editItemText: document.getElementById("editItemText"),
+    editItemUrl: document.getElementById("editItemUrl"),
+    editRoutinesModal: document.getElementById("editRoutinesModal"),
+    addRoutineInput: document.getElementById("addRoutineInput"),
+    routineEditList: document.getElementById("routineEditList"),
+    syncModal: document.getElementById("syncModal"),
+    ghOwner: document.getElementById("ghOwner"),
+    ghRepo: document.getElementById("ghRepo"),
+    ghPat: document.getElementById("ghPat"),
+    syncNote: document.getElementById("syncNote"),
+    confirmModal: document.getElementById("confirmModal"),
+    confirmText: document.getElementById("confirmText"),
+    confirmOk: document.getElementById("confirmOk"),
+    confirmCancel: document.getElementById("confirmCancel")
+  };
+
+  // ---------- Render ----------
+  function render() {
+    renderTabBar();
+    renderList();
+  }
+
+  function renderTabBar() {
+    el.tabBar.innerHTML = "";
+    state.routines.forEach(function (r) {
+      var tab = document.createElement("button");
+      tab.className = "routine-tab" + (r.id === state.activeRoutineId ? " active" : "");
+      tab.textContent = r.name;
+      tab.addEventListener("click", function () {
+        state.activeRoutineId = r.id;
+        saveLocal();
+        render();
+      });
+      el.tabBar.appendChild(tab);
+    });
+    var gearBtn = document.createElement("button");
+    gearBtn.className = "tab-icon-btn";
+    gearBtn.title = "Edit routines";
+    gearBtn.innerHTML = "&#9881;";
+    gearBtn.addEventListener("click", openEditRoutines);
+    el.tabBar.appendChild(gearBtn);
+
+    var syncBtn = document.createElement("button");
+    syncBtn.className = "tab-icon-btn";
+    syncBtn.title = "Sync setup";
+    syncBtn.innerHTML = "&#10227;";
+    syncBtn.addEventListener("click", openSyncSetup);
+    el.tabBar.appendChild(syncBtn);
+  }
+
+  function renderList() {
+    el.content.innerHTML = "";
+    var routine = activeRoutine();
+    if (!routine) {
+      var noRoutine = document.createElement("div");
+      noRoutine.className = "empty-state";
+      noRoutine.textContent = "No routines yet — add one above.";
+      el.content.appendChild(noRoutine);
+      return;
+    }
+    var items = sortedItems(routine);
+    if (items.length === 0) {
+      var empty = document.createElement("div");
+      empty.className = "empty-state";
+      empty.textContent = "No items yet — add one below.";
+      el.content.appendChild(empty);
+      return;
+    }
+    items.forEach(function (item) { el.content.appendChild(renderItemRow(routine, item)); });
+  }
+
+  function renderItemRow(routine, item) {
+    var row = document.createElement("div");
+    row.className = "item-row" + (item.checked ? " checked" : "");
+
+    var checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.className = "item-check";
+    checkbox.checked = !!item.checked;
+    checkbox.addEventListener("change", function () {
+      item.checked = checkbox.checked;
+      persistAndSync();
+      row.classList.toggle("checked", item.checked);
+    });
+    row.appendChild(checkbox);
+
+    var label = document.createElement("span");
+    label.className = "item-label" + (item.url ? " linked" : "");
+    label.textContent = item.text;
+    label.addEventListener("click", function () {
+      if (item.url) {
+        var href = /^https?:\/\//i.test(item.url) ? item.url : "https://" + item.url;
+        window.open(href, "_blank", "noopener");
+      } else {
+        checkbox.checked = !checkbox.checked;
+        checkbox.dispatchEvent(new Event("change"));
+      }
+    });
+    row.appendChild(label);
+
+    var actions = document.createElement("div");
+    actions.className = "item-actions";
+    var editBtn = document.createElement("button");
+    editBtn.innerHTML = "&#9998;";
+    editBtn.title = "Edit";
+    editBtn.addEventListener("click", function () { openEditItem(routine, item); });
+    actions.appendChild(editBtn);
+    var delBtn = document.createElement("button");
+    delBtn.innerHTML = "&#10005;";
+    delBtn.title = "Delete";
+    delBtn.addEventListener("click", function () {
+      openConfirm("Delete \"" + item.text + "\"?", function () {
+        routine.items = routine.items.filter(function (x) { return x.id !== item.id; });
+        persistAndSync();
+        render();
+      });
+    });
+    actions.appendChild(delBtn);
+    row.appendChild(actions);
+
+    return row;
+  }
+
+  // ---------- Item mutations ----------
+  function addItem(text) {
+    var routine = activeRoutine();
+    if (!routine || !text) return;
+    routine.items.push({ id: uid(), text: text, url: "", checked: false });
+    persistAndSync();
+    render();
+  }
+
+  var editingItem = null;
+  var editingRoutine = null;
+
+  function openEditItem(routine, item) {
+    editingRoutine = routine;
+    editingItem = item;
+    el.editItemText.value = item.text;
+    el.editItemUrl.value = item.url || "";
+    el.backdrop.hidden = false;
+    el.editItemModal.hidden = false;
+    el.editItemText.focus();
+  }
+
+  function closeEditItem() {
+    el.backdrop.hidden = true;
+    el.editItemModal.hidden = true;
+    editingItem = null;
+    editingRoutine = null;
+  }
+
+  function saveEditItem() {
+    if (!editingItem) return;
+    var text = el.editItemText.value.trim();
+    if (text) {
+      editingItem.text = text;
+      editingItem.url = el.editItemUrl.value.trim();
+      persistAndSync();
+    }
+    closeEditItem();
+    render();
+  }
+
+  // ---------- Routine mutations ----------
+  function addRoutine(name) {
+    if (!name) return;
+    var r = { id: uid(), name: name, items: [] };
+    state.routines.push(r);
+    state.activeRoutineId = r.id;
+    persistAndSync();
+    render();
+    renderEditRoutinesList();
+  }
+
+  function renameRoutine(id, name) {
+    var r = state.routines.find(function (x) { return x.id === id; });
+    if (!r || !name || name === r.name) { renderEditRoutinesList(); return; }
+    r.name = name;
+    persistAndSync();
+    render();
+    renderEditRoutinesList();
+  }
+
+  function deleteRoutine(id) {
+    var r = state.routines.find(function (x) { return x.id === id; });
+    if (!r) return;
+    var count = r.items.length;
+    var countText = count === 0 ? "" : " and its " + (count === 1 ? "1 item" : count + " items");
+    openConfirm("Delete \"" + r.name + "\"" + countText + "?", function () {
+      state.routines = state.routines.filter(function (x) { return x.id !== id; });
+      if (state.activeRoutineId === id) {
+        state.activeRoutineId = state.routines.length ? state.routines[0].id : null;
+      }
+      persistAndSync();
+      render();
+      renderEditRoutinesList();
+    });
+  }
+
+  function openEditRoutines() {
+    el.addRoutineInput.value = "";
+    el.backdrop.hidden = false;
+    el.editRoutinesModal.hidden = false;
+    renderEditRoutinesList();
+  }
+
+  function closeEditRoutines() {
+    el.backdrop.hidden = true;
+    el.editRoutinesModal.hidden = true;
+  }
+
+  function renderEditRoutinesList() {
+    el.routineEditList.innerHTML = "";
+    state.routines.forEach(function (r) {
+      var row = document.createElement("div");
+      row.className = "routine-edit-row";
+
+      var input = document.createElement("input");
+      input.type = "text";
+      input.className = "routine-name-input";
+      input.value = r.name;
+      input.addEventListener("change", function () { renameRoutine(r.id, input.value.trim()); });
+      input.addEventListener("keydown", function (e) { if (e.key === "Enter") input.blur(); });
+      row.appendChild(input);
+
+      var delBtn = document.createElement("button");
+      delBtn.innerHTML = "&#10005;";
+      delBtn.title = "Delete routine";
+      delBtn.addEventListener("click", function () { deleteRoutine(r.id); });
+      row.appendChild(delBtn);
+
+      el.routineEditList.appendChild(row);
+    });
+  }
+
+  // ---------- Sync Setup ----------
+  function openSyncSetup() {
+    if (state.gh) {
+      el.ghOwner.value = state.gh.owner || "";
+      el.ghRepo.value = state.gh.repo || "";
+      el.ghPat.value = state.gh.pat || "";
+      el.syncNote.textContent = "Currently syncing to " + state.gh.owner + "/" + state.gh.repo + ".";
+    } else {
+      el.ghOwner.value = ""; el.ghRepo.value = ""; el.ghPat.value = "";
+      el.syncNote.textContent = "Not configured — data is stored on this device only.";
+    }
+    el.backdrop.hidden = false;
+    el.syncModal.hidden = false;
+  }
+
+  function closeSyncSetup() {
+    el.backdrop.hidden = true;
+    el.syncModal.hidden = true;
+  }
+
+  // ---------- Generic confirm ----------
+  var pendingConfirmAction = null;
+
+  function openConfirm(message, onConfirm) {
+    pendingConfirmAction = onConfirm;
+    el.confirmText.textContent = message;
+    el.backdrop.hidden = false;
+    el.confirmModal.hidden = false;
+    el.confirmOk.focus();
+  }
+
+  function closeConfirm() {
+    el.confirmModal.hidden = true;
+    if (el.editRoutinesModal.hidden && el.editItemModal.hidden && el.syncModal.hidden) el.backdrop.hidden = true;
+    pendingConfirmAction = null;
+  }
+
+  // ---------- Wiring ----------
+  el.addItemBtn.addEventListener("click", function () {
+    var v = el.addItemInput.value.trim();
+    if (v) {
+      addItem(v);
+      el.addItemInput.value = "";
+      el.addItemInput.focus();
+    }
+  });
+  el.addItemInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") el.addItemBtn.click();
+  });
+
+  document.getElementById("editItemClose").addEventListener("click", closeEditItem);
+  document.getElementById("editItemCancel").addEventListener("click", closeEditItem);
+  document.getElementById("editItemSave").addEventListener("click", saveEditItem);
+
+  document.getElementById("editRoutinesClose").addEventListener("click", closeEditRoutines);
+  document.getElementById("addRoutineBtn").addEventListener("click", function () {
+    var v = el.addRoutineInput.value.trim();
+    if (v) { addRoutine(v); el.addRoutineInput.value = ""; el.addRoutineInput.focus(); }
+  });
+  el.addRoutineInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") document.getElementById("addRoutineBtn").click();
+  });
+
+  document.getElementById("syncClose").addEventListener("click", closeSyncSetup);
+  document.getElementById("syncSkip").addEventListener("click", closeSyncSetup);
+  document.getElementById("syncSave").addEventListener("click", function () {
+    var owner = el.ghOwner.value.trim();
+    var repo = el.ghRepo.value.trim();
+    var pat = el.ghPat.value.trim();
+    if (owner && repo && pat) {
+      state.gh = { owner: owner, repo: repo, pat: pat, sha: null };
+      localStorage.setItem(GH_CONFIG_KEY, JSON.stringify(state.gh));
+      ghPull();
+    }
+    closeSyncSetup();
+  });
+
+  el.confirmOk.addEventListener("click", function () {
+    var action = pendingConfirmAction;
+    closeConfirm();
+    if (action) action();
+  });
+  el.confirmCancel.addEventListener("click", closeConfirm);
+
+  el.backdrop.addEventListener("click", function () {
+    if (!el.confirmModal.hidden) { closeConfirm(); return; }
+    if (!el.editItemModal.hidden) { closeEditItem(); return; }
+    if (!el.editRoutinesModal.hidden) { closeEditRoutines(); return; }
+    if (!el.syncModal.hidden) { closeSyncSetup(); return; }
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      if (!el.confirmModal.hidden) { closeConfirm(); return; }
+      if (!el.editItemModal.hidden) { closeEditItem(); return; }
+      if (!el.editRoutinesModal.hidden) { closeEditRoutines(); return; }
+      if (!el.syncModal.hidden) { closeSyncSetup(); return; }
+    }
+  });
+
+  // ---------- Init ----------
+  loadLocal();
+  applyDailyReset();
+  render();
+  if (state.gh) ghPull();
+})();
+</script>
+</body>
+</html>
