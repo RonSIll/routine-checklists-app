@@ -64,6 +64,7 @@
     display: flex; align-items: center; justify-content: center;
     cursor: pointer; font-size: 16px;
   }
+  .tab-icon-btn:disabled { opacity: 0.35; cursor: default; }
   /* Item list */
   .content { flex: 1 1 auto; }
   .empty-state { color: var(--text3); font-size: 14px; padding: 40px 4px; text-align: center; }
@@ -79,7 +80,7 @@
   }
   .item-label.linked { color: var(--accent); text-decoration: underline; text-decoration-color: transparent; }
   .item-label.linked:hover { text-decoration-color: var(--accent); }
-  .item-row.checked .item-label { color: var(--text3); text-decoration: line-through; }
+  .item-row.checked .item-label { color: var(--text3); }
   .item-actions { display: flex; gap: 4px; opacity: 0; flex: 0 0 auto; }
   .item-row:hover .item-actions { opacity: 1; }
   .item-actions button {
@@ -245,6 +246,10 @@
     gh: null // { owner, repo, pat, sha }
   };
 
+  var pendingHide = {}; // itemId -> timeout id, items mid-way through the check-to-hide delay
+  var undoStack = []; // last 5 pre-mutation snapshots, most recent last
+  var UNDO_LIMIT = 5;
+
   function uid() {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
     return "id-" + Date.now() + "-" + Math.random().toString(16).slice(2);
@@ -290,6 +295,33 @@
   function persistAndSync() {
     saveLocal();
     ghPushDebounced();
+  }
+
+  function snapshotForUndo() {
+    undoStack.push(JSON.stringify({ routines: state.routines, activeRoutineId: state.activeRoutineId }));
+    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+  }
+
+  function undo() {
+    if (!undoStack.length) return;
+    Object.keys(pendingHide).forEach(function (id) { clearTimeout(pendingHide[id]); });
+    pendingHide = {};
+    var snap = JSON.parse(undoStack.pop());
+    state.routines = snap.routines;
+    state.activeRoutineId = snap.activeRoutineId;
+    persistAndSync();
+    render();
+  }
+
+  function resetAllChecked() {
+    snapshotForUndo();
+    Object.keys(pendingHide).forEach(function (id) { clearTimeout(pendingHide[id]); });
+    pendingHide = {};
+    state.routines.forEach(function (r) {
+      r.items.forEach(function (it) { it.checked = false; });
+    });
+    persistAndSync();
+    render();
   }
 
   function applyDailyReset() {
@@ -433,6 +465,21 @@
       });
       el.tabBar.appendChild(tab);
     });
+    var resetBtn = document.createElement("button");
+    resetBtn.className = "tab-icon-btn";
+    resetBtn.title = "Reset all items to unchecked";
+    resetBtn.innerHTML = "&#8634;";
+    resetBtn.addEventListener("click", resetAllChecked);
+    el.tabBar.appendChild(resetBtn);
+
+    var undoBtn = document.createElement("button");
+    undoBtn.className = "tab-icon-btn";
+    undoBtn.title = "Undo";
+    undoBtn.innerHTML = "&#8617;";
+    undoBtn.disabled = undoStack.length === 0;
+    undoBtn.addEventListener("click", undo);
+    el.tabBar.appendChild(undoBtn);
+
     var gearBtn = document.createElement("button");
     gearBtn.className = "tab-icon-btn";
     gearBtn.title = "Edit routines";
@@ -458,7 +505,9 @@
       el.content.appendChild(noRoutine);
       return;
     }
-    var items = sortedItems(routine);
+    var items = sortedItems(routine).filter(function (item) {
+      return !item.checked || pendingHide[item.id];
+    });
     if (items.length === 0) {
       var empty = document.createElement("div");
       empty.className = "empty-state";
@@ -478,9 +527,19 @@
     checkbox.className = "item-check";
     checkbox.checked = !!item.checked;
     checkbox.addEventListener("change", function () {
+      snapshotForUndo();
       item.checked = checkbox.checked;
       persistAndSync();
-      row.classList.toggle("checked", item.checked);
+      if (item.checked) {
+        row.classList.add("checked");
+        pendingHide[item.id] = setTimeout(function () {
+          delete pendingHide[item.id];
+          render();
+        }, 200);
+      } else {
+        if (pendingHide[item.id]) { clearTimeout(pendingHide[item.id]); delete pendingHide[item.id]; }
+        row.classList.remove("checked");
+      }
     });
     row.appendChild(checkbox);
 
@@ -491,9 +550,6 @@
       if (item.url) {
         var href = /^https?:\/\//i.test(item.url) ? item.url : "https://" + item.url;
         window.open(href, "_blank", "noopener");
-      } else {
-        checkbox.checked = !checkbox.checked;
-        checkbox.dispatchEvent(new Event("change"));
       }
     });
     row.appendChild(label);
@@ -510,6 +566,7 @@
     delBtn.title = "Delete";
     delBtn.addEventListener("click", function () {
       openConfirm("Delete \"" + item.text + "\"?", function () {
+        snapshotForUndo();
         routine.items = routine.items.filter(function (x) { return x.id !== item.id; });
         persistAndSync();
         render();
@@ -525,6 +582,7 @@
   function addItem(text) {
     var routine = activeRoutine();
     if (!routine || !text) return;
+    snapshotForUndo();
     routine.items.push({ id: uid(), text: text, url: "", checked: false });
     persistAndSync();
     render();
@@ -554,6 +612,7 @@
     if (!editingItem) return;
     var text = el.editItemText.value.trim();
     if (text) {
+      snapshotForUndo();
       editingItem.text = text;
       editingItem.url = el.editItemUrl.value.trim();
       persistAndSync();
@@ -565,6 +624,7 @@
   // ---------- Routine mutations ----------
   function addRoutine(name) {
     if (!name) return;
+    snapshotForUndo();
     var r = { id: uid(), name: name, items: [] };
     state.routines.push(r);
     state.activeRoutineId = r.id;
@@ -576,6 +636,7 @@
   function renameRoutine(id, name) {
     var r = state.routines.find(function (x) { return x.id === id; });
     if (!r || !name || name === r.name) { renderEditRoutinesList(); return; }
+    snapshotForUndo();
     r.name = name;
     persistAndSync();
     render();
@@ -588,6 +649,7 @@
     var count = r.items.length;
     var countText = count === 0 ? "" : " and its " + (count === 1 ? "1 item" : count + " items");
     openConfirm("Delete \"" + r.name + "\"" + countText + "?", function () {
+      snapshotForUndo();
       state.routines = state.routines.filter(function (x) { return x.id !== id; });
       if (state.activeRoutineId === id) {
         state.activeRoutineId = state.routines.length ? state.routines[0].id : null;
