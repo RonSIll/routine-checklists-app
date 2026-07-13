@@ -323,9 +323,14 @@
     fetch(ghApiUrl(), {
       headers: { Authorization: "token " + state.gh.pat }
     }).then(function (res) {
+      // 404 means this is the very first sync for this repo — no
+      // routines.json exists yet. Treat local data as authoritative and
+      // push it up to create the file, instead of silently doing nothing.
+      if (res.status === 404) { ghPushNow(); return null; }
       if (!res.ok) throw new Error("pull failed");
       return res.json();
     }).then(function (json) {
+      if (!json) return;
       state.gh.sha = json.sha;
       var remote = JSON.parse(b64decode(json.content));
       state.routines = remote.routines || state.routines;
