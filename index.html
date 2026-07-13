@@ -569,8 +569,13 @@
     label.textContent = item.text;
     label.addEventListener("click", function () {
       if (item.url) {
-        var href = /^https?:\/\//i.test(item.url) ? item.url : "https://" + item.url;
-        window.open(href, "_blank", "noopener");
+        var hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(item.url);
+        var href = hasScheme ? item.url : "https://" + item.url;
+        if (/^https?:/i.test(href)) {
+          window.open(href, "_blank", "noopener");
+        } else {
+          window.location.href = href;
+        }
       }
     });
     row.appendChild(label);
