@@ -483,14 +483,21 @@
     var gearBtn = document.createElement("button");
     gearBtn.className = "tab-icon-btn";
     gearBtn.title = "Edit routines";
-    gearBtn.innerHTML = "&#9881;";
+    gearBtn.innerHTML = "&#9998;";
     gearBtn.addEventListener("click", openEditRoutines);
     el.tabBar.appendChild(gearBtn);
+
+    var refreshBtn = document.createElement("button");
+    refreshBtn.className = "tab-icon-btn";
+    refreshBtn.title = "Check for latest updates";
+    refreshBtn.innerHTML = "&#8635;";
+    refreshBtn.addEventListener("click", ghPull);
+    el.tabBar.appendChild(refreshBtn);
 
     var syncBtn = document.createElement("button");
     syncBtn.className = "tab-icon-btn";
     syncBtn.title = "Sync setup";
-    syncBtn.innerHTML = "&#10227;";
+    syncBtn.innerHTML = "&#9881;";
     syncBtn.addEventListener("click", openSyncSetup);
     el.tabBar.appendChild(syncBtn);
   }
