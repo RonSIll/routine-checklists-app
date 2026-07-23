@@ -227,10 +227,11 @@
     Quick: [],
     Morning: [],
     Daily: [],
+    Projects: [],
     Friday: []
   };
 
-  var DEFAULT_ROUTINES = ["Quick", "Morning", "Daily", "Friday"].map(function (name) {
+  var DEFAULT_ROUTINES = ["Quick", "Morning", "Daily", "Projects", "Friday"].map(function (name) {
     var items = DEFAULT_ITEMS_BY_ROUTINE[name] || [];
     return {
       id: uid(),
