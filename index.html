@@ -218,6 +218,7 @@
 
   var DATA_KEY = "routineChecklistsData";
   var GH_CONFIG_KEY = "routineChecklistsGithubConfig";
+  var WINDOW_BOUNDS_KEY = "routineChecklistsWindowBounds";
   var DATA_PATH = "routines.json";
 
   // Public deploy copy: seed items are intentionally blank. Real routine
@@ -823,7 +824,49 @@
     }
   });
 
+  // ---------- Window bounds ----------
+  // App-mode windows (Chrome/Edge --app=) support resizeTo/moveTo, unlike
+  // ordinary tabs. First-ever launch fills the screen; after that, whatever
+  // size/position Ron leaves the window at is what reopens next time.
+  function restoreWindowBounds() {
+    var saved = null;
+    try {
+      saved = JSON.parse(localStorage.getItem(WINDOW_BOUNDS_KEY));
+    } catch (e) {
+      saved = null;
+    }
+    if (saved && saved.width && saved.height) {
+      try { window.resizeTo(saved.width, saved.height); } catch (e) {}
+      if (saved.x != null && saved.y != null) {
+        try { window.moveTo(saved.x, saved.y); } catch (e) {}
+      }
+    } else {
+      try { window.moveTo(0, 0); } catch (e) {}
+      try { window.resizeTo(screen.availWidth, screen.availHeight); } catch (e) {}
+    }
+  }
+
+  function watchWindowBounds() {
+    var saveTimer = null;
+    function saveBounds() {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(function () {
+        var bounds = {
+          width: window.outerWidth,
+          height: window.outerHeight,
+          x: window.screenX,
+          y: window.screenY
+        };
+        try { localStorage.setItem(WINDOW_BOUNDS_KEY, JSON.stringify(bounds)); } catch (e) {}
+      }, 500);
+    }
+    window.addEventListener("resize", saveBounds);
+    window.addEventListener("beforeunload", saveBounds);
+  }
+
   // ---------- Init ----------
+  restoreWindowBounds();
+  watchWindowBounds();
   loadLocal();
   applyDailyReset();
   render();
