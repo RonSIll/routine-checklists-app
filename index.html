@@ -65,6 +65,18 @@
     cursor: pointer; font-size: 16px;
   }
   .tab-icon-btn:disabled { opacity: 0.35; cursor: default; }
+
+  /* Reset/refresh/sync icons, parked at bottom-right. Same max-width/centering/
+     horizontal padding as #app, so its right edge always lines up with the
+     "+" glyph's right edge in the tab bar above, at any window width. */
+  .corner-icons {
+    position: fixed; left: 0; right: 0; bottom: 20px;
+    max-width: 640px; margin: 0 auto; padding: 0 20px;
+    display: flex; justify-content: flex-end; gap: 6px;
+    pointer-events: none; z-index: 15;
+  }
+  .corner-icons button { pointer-events: auto; margin-left: 0; }
+
   /* Item list */
   .content { flex: 1 1 auto; }
   .empty-state { color: var(--text3); font-size: 14px; padding: 40px 4px; text-align: center; }
@@ -81,26 +93,20 @@
   .item-label.linked { color: var(--accent); text-decoration: underline; text-decoration-color: transparent; }
   .item-label.linked:hover { text-decoration-color: var(--accent); }
   .item-row.checked .item-label { color: var(--text3); }
-  .item-actions { display: flex; gap: 4px; opacity: 0; flex: 0 0 auto; }
-  .item-row:hover .item-actions { opacity: 1; }
-  .item-actions button {
-    width: 26px; height: 26px; border: none; background: none; color: var(--text2);
-    cursor: pointer; font-size: 14px; border-radius: 6px;
-  }
-  .item-actions button:hover { background: var(--bg2); }
 
-  /* Add item row */
-  .add-row { display: flex; gap: 8px; padding-top: 16px; margin-top: 8px; border-top: 1px solid var(--border); }
-  .add-row input {
-    flex: 1; min-width: 0; padding: 10px 12px; font-size: 14px;
-    border: 1px solid var(--border); border-radius: 8px;
-    background: var(--bg2); color: var(--text); outline: none;
+  /* "+" dropdown menu */
+  .plus-menu {
+    position: fixed; z-index: 22;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+    min-width: 140px; overflow: hidden;
   }
-  .add-row input:focus { border-color: var(--accent); }
-  .add-row button {
-    padding: 10px 16px; font-size: 14px; font-weight: 500; border-radius: 8px;
-    border: none; background: var(--accent); color: #fff; cursor: pointer;
+  .plus-menu button {
+    display: block; width: 100%; text-align: left; min-width: 0;
+    padding: 10px 14px; font-size: 14px; border: none; background: none; color: var(--text);
+    cursor: pointer;
   }
+  .plus-menu button:hover { background: var(--bg2); }
 
   /* Modal */
   .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 20; }
@@ -123,26 +129,13 @@
   .modal input:focus { border-color: var(--accent); }
   .modal-actions { display: flex; gap: 8px; margin-top: 18px; }
   .modal-actions button {
-    flex: 1; padding: 10px; border-radius: 8px; border: none; font-size: 14px; font-weight: 500; cursor: pointer;
+    flex: 1; min-width: 0; padding: 10px; border-radius: 8px; border: none; font-size: 14px; font-weight: 500; cursor: pointer;
   }
   .btn-primary { background: var(--accent); color: #fff; }
   .btn-secondary { background: var(--bg2); color: var(--text2); }
   .btn-danger { background: var(--red); color: #fff; }
   .confirm-text { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
   .sync-note { font-size: 12px; color: var(--text3); margin-top: 10px; }
-
-  /* Edit Routines list */
-  .routine-edit-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 0.5px solid var(--border); }
-  .routine-edit-row:last-child { border-bottom: none; }
-  .routine-name-input {
-    flex: 1; min-width: 0; border: none; background: transparent; color: var(--text);
-    font-size: 14px; padding: 6px 4px; outline: none;
-  }
-  .routine-edit-row button {
-    width: 26px; height: 26px; border: none; background: none; color: var(--text2);
-    cursor: pointer; font-size: 14px; border-radius: 6px; flex: 0 0 auto;
-  }
-  .routine-edit-row button:hover { background: var(--bg2); }
 
   [hidden] { display: none !important; }
 </style>
@@ -151,13 +144,16 @@
 <div id="app">
   <div class="tab-bar" id="tabBar"></div>
   <main class="content" id="content"></main>
-  <div class="add-row">
-    <input type="text" id="addItemInput" placeholder="Add item…">
-    <button id="addItemBtn">Add</button>
-  </div>
 </div>
 
+<div class="corner-icons" id="cornerIcons"></div>
+
 <div class="backdrop" id="backdrop" hidden></div>
+
+<div class="plus-menu" id="plusMenu" hidden>
+  <button id="plusMenuNewList">New List</button>
+  <button id="plusMenuNewItem">New Item</button>
+</div>
 
 <div class="modal" id="editItemModal" hidden>
   <div class="modal-header">
@@ -169,21 +165,52 @@
   <label>URL (optional)</label>
   <input type="url" id="editItemUrl" placeholder="https://…">
   <div class="modal-actions">
+    <button class="btn-danger" id="editItemDelete">Delete</button>
     <button class="btn-secondary" id="editItemCancel">Cancel</button>
     <button class="btn-primary" id="editItemSave">Save</button>
   </div>
 </div>
 
-<div class="modal" id="editRoutinesModal" hidden>
+<div class="modal" id="newItemModal" hidden>
   <div class="modal-header">
-    <span class="modal-title">Edit Routines</span>
-    <button class="modal-close" id="editRoutinesClose">&#10005;</button>
+    <span class="modal-title">New Item</span>
+    <button class="modal-close" id="newItemClose">&#10005;</button>
   </div>
-  <input type="text" id="addRoutineInput" placeholder="New routine…">
-  <div class="modal-actions" style="margin-top: 8px;">
-    <button class="btn-primary" id="addRoutineBtn" style="flex: 0 0 auto; padding: 8px 14px;">Add</button>
+  <label>Text</label>
+  <input type="text" id="newItemText">
+  <label>URL (optional)</label>
+  <input type="url" id="newItemUrl" placeholder="https://…">
+  <div class="modal-actions">
+    <button class="btn-secondary" id="newItemCancel">Cancel</button>
+    <button class="btn-primary" id="newItemSave">Save</button>
   </div>
-  <div id="routineEditList" style="margin-top: 12px;"></div>
+</div>
+
+<div class="modal" id="editListModal" hidden>
+  <div class="modal-header">
+    <span class="modal-title">Edit List</span>
+    <button class="modal-close" id="editListClose">&#10005;</button>
+  </div>
+  <label>Name</label>
+  <input type="text" id="editListName">
+  <div class="modal-actions">
+    <button class="btn-danger" id="editListDelete">Delete</button>
+    <button class="btn-secondary" id="editListCancel">Cancel</button>
+    <button class="btn-primary" id="editListSave">Save</button>
+  </div>
+</div>
+
+<div class="modal" id="newListModal" hidden>
+  <div class="modal-header">
+    <span class="modal-title">New List</span>
+    <button class="modal-close" id="newListClose">&#10005;</button>
+  </div>
+  <label>Name</label>
+  <input type="text" id="newListName">
+  <div class="modal-actions">
+    <button class="btn-secondary" id="newListCancel">Cancel</button>
+    <button class="btn-primary" id="newListSave">Save</button>
+  </div>
 </div>
 
 <div class="modal" id="syncModal" hidden>
@@ -249,8 +276,8 @@
   };
 
   var pendingHide = {}; // itemId -> timeout id, items mid-way through the check-to-hide delay
-  var undoStack = []; // last 5 pre-mutation snapshots, most recent last
-  var UNDO_LIMIT = 5;
+  var undoStack = []; // last 10 pre-mutation snapshots, most recent last
+  var UNDO_LIMIT = 10;
 
   function uid() {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -428,15 +455,19 @@
   var el = {
     tabBar: document.getElementById("tabBar"),
     content: document.getElementById("content"),
-    addItemInput: document.getElementById("addItemInput"),
-    addItemBtn: document.getElementById("addItemBtn"),
+    cornerIcons: document.getElementById("cornerIcons"),
     backdrop: document.getElementById("backdrop"),
+    plusMenu: document.getElementById("plusMenu"),
     editItemModal: document.getElementById("editItemModal"),
     editItemText: document.getElementById("editItemText"),
     editItemUrl: document.getElementById("editItemUrl"),
-    editRoutinesModal: document.getElementById("editRoutinesModal"),
-    addRoutineInput: document.getElementById("addRoutineInput"),
-    routineEditList: document.getElementById("routineEditList"),
+    newItemModal: document.getElementById("newItemModal"),
+    newItemText: document.getElementById("newItemText"),
+    newItemUrl: document.getElementById("newItemUrl"),
+    editListModal: document.getElementById("editListModal"),
+    editListName: document.getElementById("editListName"),
+    newListModal: document.getElementById("newListModal"),
+    newListName: document.getElementById("newListName"),
     syncModal: document.getElementById("syncModal"),
     ghOwner: document.getElementById("ghOwner"),
     ghRepo: document.getElementById("ghRepo"),
@@ -461,8 +492,7 @@
 
   var ICONS = {
     reset: '<polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>',
-    undo: '<polyline points="9 14 4 9 9 4"></polyline><path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>',
-    pencil: '<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>',
+    plus: '<line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>',
     refresh: '<polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline>' +
       '<path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>',
     gear: '<circle cx="12" cy="12" r="3"></circle><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>'
@@ -479,43 +509,46 @@
         saveLocal();
         render();
       });
+      tab.addEventListener("dblclick", function () { openEditList(r); });
       el.tabBar.appendChild(tab);
     });
+
+    var plusBtn = document.createElement("button");
+    plusBtn.id = "plusBtn";
+    plusBtn.className = "tab-icon-btn";
+    plusBtn.title = "Add";
+    plusBtn.innerHTML = iconSvg(ICONS.plus);
+    plusBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (!el.plusMenu.hidden) { closePlusMenu(); return; }
+      openPlusMenu(plusBtn);
+    });
+    el.tabBar.appendChild(plusBtn);
+  }
+
+  // These three never change once built, so they're rendered once at
+  // startup rather than rebuilt on every render() like the tab bar is.
+  function renderCornerIcons() {
     var resetBtn = document.createElement("button");
     resetBtn.className = "tab-icon-btn";
     resetBtn.title = "Reset all items to unchecked";
     resetBtn.innerHTML = iconSvg(ICONS.reset);
     resetBtn.addEventListener("click", resetAllChecked);
-    el.tabBar.appendChild(resetBtn);
-
-    var undoBtn = document.createElement("button");
-    undoBtn.className = "tab-icon-btn";
-    undoBtn.title = "Undo";
-    undoBtn.innerHTML = iconSvg(ICONS.undo);
-    undoBtn.disabled = undoStack.length === 0;
-    undoBtn.addEventListener("click", undo);
-    el.tabBar.appendChild(undoBtn);
-
-    var gearBtn = document.createElement("button");
-    gearBtn.className = "tab-icon-btn";
-    gearBtn.title = "Edit routines";
-    gearBtn.innerHTML = iconSvg(ICONS.pencil);
-    gearBtn.addEventListener("click", openEditRoutines);
-    el.tabBar.appendChild(gearBtn);
+    el.cornerIcons.appendChild(resetBtn);
 
     var refreshBtn = document.createElement("button");
     refreshBtn.className = "tab-icon-btn";
     refreshBtn.title = "Refresh";
     refreshBtn.innerHTML = iconSvg(ICONS.refresh);
     refreshBtn.addEventListener("click", ghPull);
-    el.tabBar.appendChild(refreshBtn);
+    el.cornerIcons.appendChild(refreshBtn);
 
     var syncBtn = document.createElement("button");
     syncBtn.className = "tab-icon-btn";
     syncBtn.title = "Sync setup";
     syncBtn.innerHTML = iconSvg(ICONS.gear);
     syncBtn.addEventListener("click", openSyncSetup);
-    el.tabBar.appendChild(syncBtn);
+    el.cornerIcons.appendChild(syncBtn);
   }
 
   function renderList() {
@@ -534,7 +567,7 @@
     if (items.length === 0) {
       var empty = document.createElement("div");
       empty.className = "empty-state";
-      empty.textContent = "No items yet — add one below.";
+      empty.textContent = "No items yet — add one above.";
       el.content.appendChild(empty);
       return;
     }
@@ -569,49 +602,45 @@
     var label = document.createElement("span");
     label.className = "item-label" + (item.url ? " linked" : "");
     label.textContent = item.text;
-    label.addEventListener("click", function () {
-      if (item.url) {
-        var hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(item.url);
-        var href = hasScheme ? item.url : "https://" + item.url;
-        if (/^https?:/i.test(href)) {
-          window.open(href, "_blank", "noopener");
-        } else {
-          window.location.href = href;
-        }
-      }
-    });
+    // A single click opens the item's link, but a double-click should open
+    // the Edit Item modal instead — delay the link-open just long enough to
+    // cancel it if a second click arrives (i.e. it turns into a dblclick).
+    var linkClickTimer = null;
+    if (item.url) {
+      label.addEventListener("click", function () {
+        if (linkClickTimer) return;
+        linkClickTimer = setTimeout(function () {
+          linkClickTimer = null;
+          openItemLink(item.url);
+        }, 250);
+      });
+    }
     row.appendChild(label);
 
-    var actions = document.createElement("div");
-    actions.className = "item-actions";
-    var editBtn = document.createElement("button");
-    editBtn.innerHTML = "&#9998;";
-    editBtn.title = "Edit";
-    editBtn.addEventListener("click", function () { openEditItem(routine, item); });
-    actions.appendChild(editBtn);
-    var delBtn = document.createElement("button");
-    delBtn.innerHTML = "&#10005;";
-    delBtn.title = "Delete";
-    delBtn.addEventListener("click", function () {
-      openConfirm("Delete \"" + item.text + "\"?", function () {
-        snapshotForUndo();
-        routine.items = routine.items.filter(function (x) { return x.id !== item.id; });
-        persistAndSync();
-        render();
-      });
+    row.addEventListener("dblclick", function () {
+      if (linkClickTimer) { clearTimeout(linkClickTimer); linkClickTimer = null; }
+      openEditItem(routine, item);
     });
-    actions.appendChild(delBtn);
-    row.appendChild(actions);
 
     return row;
   }
 
+  function openItemLink(url) {
+    var hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(url);
+    var href = hasScheme ? url : "https://" + url;
+    if (/^https?:/i.test(href)) {
+      window.open(href, "_blank", "noopener");
+    } else {
+      window.location.href = href;
+    }
+  }
+
   // ---------- Item mutations ----------
-  function addItem(text) {
+  function addItem(text, url) {
     var routine = activeRoutine();
     if (!routine || !text) return;
     snapshotForUndo();
-    routine.items.push({ id: uid(), text: text, url: "", checked: false });
+    routine.items.push({ id: uid(), text: text, url: url || "", checked: false });
     persistAndSync();
     render();
   }
@@ -649,6 +678,35 @@
     render();
   }
 
+  function deleteEditingItem() {
+    if (!editingItem || !editingRoutine) return;
+    snapshotForUndo();
+    editingRoutine.items = editingRoutine.items.filter(function (x) { return x.id !== editingItem.id; });
+    persistAndSync();
+    closeEditItem();
+    render();
+  }
+
+  // ---------- New Item ----------
+  function openNewItem() {
+    el.newItemText.value = "";
+    el.newItemUrl.value = "";
+    el.backdrop.hidden = false;
+    el.newItemModal.hidden = false;
+    el.newItemText.focus();
+  }
+
+  function closeNewItem() {
+    el.backdrop.hidden = true;
+    el.newItemModal.hidden = true;
+  }
+
+  function saveNewItem() {
+    var text = el.newItemText.value.trim();
+    if (text) addItem(text, el.newItemUrl.value.trim());
+    closeNewItem();
+  }
+
   // ---------- Routine mutations ----------
   function addRoutine(name) {
     if (!name) return;
@@ -658,70 +716,82 @@
     state.activeRoutineId = r.id;
     persistAndSync();
     render();
-    renderEditRoutinesList();
   }
 
-  function renameRoutine(id, name) {
-    var r = state.routines.find(function (x) { return x.id === id; });
-    if (!r || !name || name === r.name) { renderEditRoutinesList(); return; }
-    snapshotForUndo();
-    r.name = name;
-    persistAndSync();
+  var editingListRoutine = null;
+
+  function openEditList(routine) {
+    editingListRoutine = routine;
+    el.editListName.value = routine.name;
+    el.backdrop.hidden = false;
+    el.editListModal.hidden = false;
+    el.editListName.focus();
+  }
+
+  function closeEditList() {
+    el.backdrop.hidden = true;
+    el.editListModal.hidden = true;
+    editingListRoutine = null;
+  }
+
+  function saveEditList() {
+    if (!editingListRoutine) return;
+    var name = el.editListName.value.trim();
+    if (name && name !== editingListRoutine.name) {
+      snapshotForUndo();
+      editingListRoutine.name = name;
+      persistAndSync();
+    }
+    closeEditList();
     render();
-    renderEditRoutinesList();
   }
 
-  function deleteRoutine(id) {
-    var r = state.routines.find(function (x) { return x.id === id; });
-    if (!r) return;
+  function deleteEditingList() {
+    if (!editingListRoutine) return;
+    var r = editingListRoutine;
     var count = r.items.length;
     var countText = count === 0 ? "" : " and its " + (count === 1 ? "1 item" : count + " items");
     openConfirm("Delete \"" + r.name + "\"" + countText + "?", function () {
       snapshotForUndo();
-      state.routines = state.routines.filter(function (x) { return x.id !== id; });
-      if (state.activeRoutineId === id) {
+      state.routines = state.routines.filter(function (x) { return x.id !== r.id; });
+      if (state.activeRoutineId === r.id) {
         state.activeRoutineId = state.routines.length ? state.routines[0].id : null;
       }
       persistAndSync();
+      closeEditList();
       render();
-      renderEditRoutinesList();
     });
   }
 
-  function openEditRoutines() {
-    el.addRoutineInput.value = "";
+  // ---------- New List ----------
+  function openNewList() {
+    el.newListName.value = "";
     el.backdrop.hidden = false;
-    el.editRoutinesModal.hidden = false;
-    renderEditRoutinesList();
+    el.newListModal.hidden = false;
+    el.newListName.focus();
   }
 
-  function closeEditRoutines() {
+  function closeNewList() {
     el.backdrop.hidden = true;
-    el.editRoutinesModal.hidden = true;
+    el.newListModal.hidden = true;
   }
 
-  function renderEditRoutinesList() {
-    el.routineEditList.innerHTML = "";
-    state.routines.forEach(function (r) {
-      var row = document.createElement("div");
-      row.className = "routine-edit-row";
+  function saveNewList() {
+    var name = el.newListName.value.trim();
+    if (name) addRoutine(name);
+    closeNewList();
+  }
 
-      var input = document.createElement("input");
-      input.type = "text";
-      input.className = "routine-name-input";
-      input.value = r.name;
-      input.addEventListener("change", function () { renameRoutine(r.id, input.value.trim()); });
-      input.addEventListener("keydown", function (e) { if (e.key === "Enter") input.blur(); });
-      row.appendChild(input);
+  // ---------- "+" dropdown menu ----------
+  function openPlusMenu(anchorBtn) {
+    var rect = anchorBtn.getBoundingClientRect();
+    el.plusMenu.style.top = (rect.bottom + 6) + "px";
+    el.plusMenu.style.right = (window.innerWidth - rect.right) + "px";
+    el.plusMenu.hidden = false;
+  }
 
-      var delBtn = document.createElement("button");
-      delBtn.innerHTML = "&#10005;";
-      delBtn.title = "Delete routine";
-      delBtn.addEventListener("click", function () { deleteRoutine(r.id); });
-      row.appendChild(delBtn);
-
-      el.routineEditList.appendChild(row);
-    });
+  function closePlusMenu() {
+    el.plusMenu.hidden = true;
   }
 
   // ---------- Sync Setup ----------
@@ -757,34 +827,41 @@
 
   function closeConfirm() {
     el.confirmModal.hidden = true;
-    if (el.editRoutinesModal.hidden && el.editItemModal.hidden && el.syncModal.hidden) el.backdrop.hidden = true;
+    if (el.editListModal.hidden && el.editItemModal.hidden && el.syncModal.hidden) el.backdrop.hidden = true;
     pendingConfirmAction = null;
   }
 
   // ---------- Wiring ----------
-  el.addItemBtn.addEventListener("click", function () {
-    var v = el.addItemInput.value.trim();
-    if (v) {
-      addItem(v);
-      el.addItemInput.value = "";
-      el.addItemInput.focus();
-    }
-  });
-  el.addItemInput.addEventListener("keydown", function (e) {
-    if (e.key === "Enter") el.addItemBtn.click();
-  });
-
   document.getElementById("editItemClose").addEventListener("click", closeEditItem);
   document.getElementById("editItemCancel").addEventListener("click", closeEditItem);
   document.getElementById("editItemSave").addEventListener("click", saveEditItem);
+  document.getElementById("editItemDelete").addEventListener("click", deleteEditingItem);
 
-  document.getElementById("editRoutinesClose").addEventListener("click", closeEditRoutines);
-  document.getElementById("addRoutineBtn").addEventListener("click", function () {
-    var v = el.addRoutineInput.value.trim();
-    if (v) { addRoutine(v); el.addRoutineInput.value = ""; el.addRoutineInput.focus(); }
+  document.getElementById("newItemClose").addEventListener("click", closeNewItem);
+  document.getElementById("newItemCancel").addEventListener("click", closeNewItem);
+  document.getElementById("newItemSave").addEventListener("click", saveNewItem);
+
+  document.getElementById("editListClose").addEventListener("click", closeEditList);
+  document.getElementById("editListCancel").addEventListener("click", closeEditList);
+  document.getElementById("editListSave").addEventListener("click", saveEditList);
+  document.getElementById("editListDelete").addEventListener("click", deleteEditingList);
+
+  document.getElementById("newListClose").addEventListener("click", closeNewList);
+  document.getElementById("newListCancel").addEventListener("click", closeNewList);
+  document.getElementById("newListSave").addEventListener("click", saveNewList);
+
+  document.getElementById("plusMenuNewList").addEventListener("click", function () {
+    closePlusMenu();
+    openNewList();
   });
-  el.addRoutineInput.addEventListener("keydown", function (e) {
-    if (e.key === "Enter") document.getElementById("addRoutineBtn").click();
+  document.getElementById("plusMenuNewItem").addEventListener("click", function () {
+    closePlusMenu();
+    openNewItem();
+  });
+  document.addEventListener("click", function (e) {
+    if (el.plusMenu.hidden) return;
+    if (e.target.closest && (e.target.closest("#plusBtn") || e.target.closest("#plusMenu"))) return;
+    closePlusMenu();
   });
 
   document.getElementById("syncClose").addEventListener("click", closeSyncSetup);
@@ -811,16 +888,31 @@
   el.backdrop.addEventListener("click", function () {
     if (!el.confirmModal.hidden) { closeConfirm(); return; }
     if (!el.editItemModal.hidden) { closeEditItem(); return; }
-    if (!el.editRoutinesModal.hidden) { closeEditRoutines(); return; }
+    if (!el.newItemModal.hidden) { closeNewItem(); return; }
+    if (!el.editListModal.hidden) { closeEditList(); return; }
+    if (!el.newListModal.hidden) { closeNewList(); return; }
     if (!el.syncModal.hidden) { closeSyncSetup(); return; }
   });
 
   document.addEventListener("keydown", function (e) {
+    // Ctrl+Z undoes the last change, unless focus is in a text field —
+    // there, leave it alone so the browser's own field-level undo still works.
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "z") {
+      var tag = e.target && e.target.tagName;
+      if (tag !== "INPUT" && tag !== "TEXTAREA") {
+        e.preventDefault();
+        undo();
+      }
+      return;
+    }
     if (e.key === "Escape") {
       if (!el.confirmModal.hidden) { closeConfirm(); return; }
       if (!el.editItemModal.hidden) { closeEditItem(); return; }
-      if (!el.editRoutinesModal.hidden) { closeEditRoutines(); return; }
+      if (!el.newItemModal.hidden) { closeNewItem(); return; }
+      if (!el.editListModal.hidden) { closeEditList(); return; }
+      if (!el.newListModal.hidden) { closeNewList(); return; }
       if (!el.syncModal.hidden) { closeSyncSetup(); return; }
+      if (!el.plusMenu.hidden) { closePlusMenu(); return; }
     }
   });
 
@@ -869,6 +961,7 @@
   watchWindowBounds();
   loadLocal();
   applyDailyReset();
+  renderCornerIcons();
   render();
   if (state.gh) ghPull();
 })();
