@@ -87,12 +87,19 @@
   .item-row:last-child { border-bottom: none; }
   .item-check { width: 18px; height: 18px; flex: 0 0 auto; cursor: pointer; accent-color: var(--accent); }
   .item-label {
-    flex: 1; min-width: 0; font-size: 15px; cursor: pointer;
+    flex: 0 1 auto; min-width: 0; font-size: 15px;
     color: var(--text); word-break: break-word;
   }
-  .item-label.linked { color: var(--accent); text-decoration: underline; text-decoration-color: transparent; }
-  .item-label.linked:hover { text-decoration-color: var(--accent); }
   .item-row.checked .item-label { color: var(--text3); }
+  .item-link {
+    flex: 0 0 auto; cursor: pointer;
+    color: #fff; background: var(--text3);
+    font-size: 10px; font-weight: 700; line-height: 1;
+    padding: 5px 8px; border-radius: 7px;
+    user-select: none; text-decoration: none;
+  }
+  .item-link:hover { background: var(--accent); }
+  .item-row.checked .item-link { background: var(--text3); }
 
   /* "+" dropdown menu */
   .plus-menu {
@@ -600,25 +607,27 @@
     row.appendChild(checkbox);
 
     var label = document.createElement("span");
-    label.className = "item-label" + (item.url ? " linked" : "");
+    label.className = "item-label";
     label.textContent = item.text;
-    // A single click opens the item's link, but a double-click should open
-    // the Edit Item modal instead — delay the link-open just long enough to
-    // cancel it if a second click arrives (i.e. it turns into a dblclick).
-    var linkClickTimer = null;
-    if (item.url) {
-      label.addEventListener("click", function () {
-        if (linkClickTimer) return;
-        linkClickTimer = setTimeout(function () {
-          linkClickTimer = null;
-          openItemLink(item.url);
-        }, 250);
-      });
-    }
     row.appendChild(label);
 
+    // Items with a link get a ↗ glyph on the right; clicking it opens the
+    // link. The item text itself is no longer a hyperlink.
+    if (item.url) {
+      var link = document.createElement("span");
+      link.className = "item-link";
+      link.textContent = "↗";
+      link.title = "Open link";
+      link.addEventListener("click", function (e) {
+        e.stopPropagation();
+        openItemLink(item.url);
+      });
+      link.addEventListener("dblclick", function (e) { e.stopPropagation(); });
+      row.appendChild(link);
+    }
+
+    // Double-click anywhere else on the row opens the Edit Item modal.
     row.addEventListener("dblclick", function () {
-      if (linkClickTimer) { clearTimeout(linkClickTimer); linkClickTimer = null; }
       openEditItem(routine, item);
     });
 
